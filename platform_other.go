@@ -54,4 +54,10 @@ func message(title, text string) {
 	_ = exec.Command("osascript", "-e", `display dialog "`+strings.ReplaceAll(text, `"`, `'`)+`" with title "`+title+`" buttons {"OK"}`).Run()
 }
 
+func confirm(title, text string) bool {
+	out, err := exec.Command("osascript", "-e", `display dialog "`+strings.ReplaceAll(text, `"`, `'`)+
+		`" with title "`+title+`" buttons {"Not now", "Yes"} default button "Yes"`).Output()
+	return err == nil && strings.Contains(string(out), "Yes")
+}
+
 func singleInstance() bool { return true }

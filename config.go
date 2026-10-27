@@ -13,6 +13,8 @@ type config struct {
 	Key    string `json:"key,omitempty"`
 	Member string `json:"member,omitempty"`
 	WowDir string `json:"wowDir,omitempty"`
+	// The player saw what the app reads and sends, and agreed to connect.
+	PrivacyOK bool `json:"privacyOk,omitempty"`
 	// WoW accounts left out: on a shared computer, someone else's characters.
 	Skip map[string]bool `json:"skip,omitempty"`
 	// What was last sent from each file, so the same code is never sent twice.

@@ -64,6 +64,16 @@ func message(title, text string) {
 	user32.NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(m)), uintptr(unsafe.Pointer(t)), 0x40)
 }
 
+// confirm asks a yes/no question in a standard Windows box.
+func confirm(title, text string) bool {
+	t, _ := windows.UTF16PtrFromString(title)
+	m, _ := windows.UTF16PtrFromString(text)
+	user32 := windows.NewLazySystemDLL("user32.dll")
+	// MB_YESNO | MB_ICONINFORMATION | MB_SETFOREGROUND; IDYES is 6.
+	r, _, _ := user32.NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(m)), uintptr(unsafe.Pointer(t)), 0x4|0x40|0x10000)
+	return r == 6
+}
+
 var mutex windows.Handle
 
 // singleInstance stops a second copy (say, started twice) from running beside the first.

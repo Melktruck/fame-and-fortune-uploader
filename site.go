@@ -4,6 +4,7 @@ package main
 //   POST /api/uploader/start  → a connect code to approve on the website, and a secret to poll with
 //   POST /api/uploader/poll   → the key, once the member clicked Connect
 //   POST /api/upload          → the saved code, with "Authorization: Bearer <key>"
+//   POST /api/uploader/disconnect → forget this computer's key (Disconnect, Remove)
 
 import (
 	"bytes"
@@ -119,4 +120,16 @@ func upload(site, key string, codes []string, account string, at int64) (uploadR
 		return r, errors.New(r.Error)
 	}
 	return r, nil
+}
+
+// revoke asks the website to forget this key. A key it no longer knows counts as done.
+func revoke(site, key string) error {
+	status, err := post(site, "/api/uploader/disconnect", key, map[string]string{}, nil)
+	if err != nil {
+		return err
+	}
+	if status != 200 && status != 401 && status != 403 {
+		return fmt.Errorf("the website said %d", status)
+	}
+	return nil
 }

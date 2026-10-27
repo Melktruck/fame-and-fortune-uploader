@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -23,23 +24,25 @@ import (
 )
 
 const (
-	version     = "1.0.0"
+	version     = "1.1.0"
 	defaultSite = "https://fameandfortune.net"
 	checkEvery  = 15 * time.Second
 )
 
 var (
-	mStatus, mLast, mSend, mFolder, mAccounts, mStartup, mConnect, mPage *systray.MenuItem
-	accountItems                                                         = map[string]*systray.MenuItem{}
-	sendMu                                                               sync.Mutex
-	connecting                                                           sync.Mutex
-	seen                                                                 = map[string]time.Time{}
+	mStatus, mLast, mSend, mFolder, mAccounts, mStartup, mConnect, mPage, mPrivacy, mRemove *systray.MenuItem
+	logFile                                                                                 *os.File
+	accountItems                                                                            = map[string]*systray.MenuItem{}
+	sendMu                                                                                  sync.Mutex
+	connecting                                                                              sync.Mutex
+	seen                                                                                    = map[string]time.Time{}
 )
 
 func main() {
 	_ = os.MkdirAll(configDir(), 0o700)
 	if f, err := os.OpenFile(filepath.Join(configDir(), "uploader.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600); err == nil {
 		log.SetOutput(f)
+		logFile = f
 	}
 	if !singleInstance() {
 		return
@@ -69,6 +72,8 @@ func onReady() {
 	}
 	mConnect = systray.AddMenuItem("Connect to your account", "")
 	systray.AddSeparator()
+	mPrivacy = systray.AddMenuItem("Privacy: what this reads and sends", "")
+	mRemove = systray.AddMenuItem("Remove from this computer…", "Disconnect, stop starting with Windows, delete settings")
 	mQuit := systray.AddMenuItem("Quit", "")
 
 	c := readConfig()
@@ -102,11 +107,14 @@ func onReady() {
 				}
 			case <-mConnect.ClickedCh:
 				if readConfig().Key != "" {
-					withConfig(func(c *config) { c.Key, c.Member = "", "" })
-					refreshMenu()
+					go disconnect()
 				} else {
 					go connect()
 				}
+			case <-mPrivacy.ClickedCh:
+				go message("Fame & Fortune Uploader: privacy", privacyText)
+			case <-mRemove.ClickedCh:
+				go remove()
 			case <-mQuit.ClickedCh:
 				systray.Quit()
 				return
@@ -281,12 +289,31 @@ func reasonText(r string) string {
 	return "That isn't the add-on's file"
 }
 
+// privacyText is shown before connecting and from the Privacy menu item. PRIVACY.md has the long version.
+const privacyText = "What this app does:\n\n" +
+	"• It reads one file: the Fame & Fortune add-on's saved data (SavedVariables\\FameAndFortune.lua), " +
+	"and only the code the add-on saved when you last logged out of WoW.\n" +
+	"• It sends only that code to fameandfortune.net, for your account. The code holds your characters, " +
+	"levels, professions, recipes, equipped gear and dungeon runs. Never your bags, bank, gold or time played.\n" +
+	"• It never runs, reads or changes the game, and reads no other files.\n\n" +
+	"To stop it: Disconnect, Quit, or Remove from this computer (right-click the coin by the clock), " +
+	"or disconnect it on the website's Send your code page.\n\n" +
+	"Full privacy notice: github.com/Melktruck/fame-and-fortune-uploader/blob/main/PRIVACY.md"
+
 // connect gets a key the way a TV app signs in: the website opens, you click Connect, done.
+// The first time, it shows what it reads and sends, and only goes on if the player agrees.
 func connect() {
 	if !connecting.TryLock() {
 		return
 	}
 	defer connecting.Unlock()
+	if !readConfig().PrivacyOK {
+		if !confirm("Fame & Fortune Uploader", privacyText+"\n\nConnect this computer to your guild account now?") {
+			mStatus.SetTitle("Not connected: click Connect when you're ready")
+			return
+		}
+		withConfig(func(c *config) { c.PrivacyOK = true })
+	}
 	c := readConfig()
 	name, _ := os.Hostname()
 	s, err := startConnect(c.Site, name)
@@ -335,4 +362,42 @@ func openBrowser(url string) {
 		cmd = exec.Command("xdg-open", url)
 	}
 	_ = cmd.Start()
+}
+
+// disconnect tells the website to forget this computer's key, then forgets it here too.
+func disconnect() {
+	c := readConfig()
+	if c.Key != "" {
+		if err := revoke(c.Site, c.Key); err != nil {
+			log.Printf("disconnect: %v", err)
+		}
+	}
+	withConfig(func(c *config) { c.Key, c.Member = "", "" })
+	refreshMenu()
+}
+
+// remove undoes everything the uploader set up on this computer, then quits.
+func remove() {
+	if !confirm("Remove Fame & Fortune Uploader",
+		"This disconnects it from your account, stops it starting with Windows, deletes its settings "+
+			"(%AppData%\\FameAndFortune) and closes it.\n\nAfterwards, delete FameAndFortuneUploader.exe to finish.\n\nRemove it now?") {
+		return
+	}
+	sendMu.Lock() // no upload halfway through
+	c := readConfig()
+	if c.Key != "" {
+		if err := revoke(c.Site, c.Key); err != nil {
+			log.Printf("remove: %v", err)
+		}
+	}
+	if startsAtLogin() {
+		_ = setStartAtLogin(false)
+	}
+	log.SetOutput(io.Discard)
+	if logFile != nil {
+		_ = logFile.Close()
+	}
+	_ = os.RemoveAll(configDir())
+	message("Fame & Fortune Uploader", "Removed. Delete FameAndFortuneUploader.exe to finish.")
+	systray.Quit()
 }

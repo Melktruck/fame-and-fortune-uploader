@@ -47,7 +47,9 @@ Releases are built by GitHub Actions on GitHub-hosted runners from a tagged comm
     go test ./...
     sh build.sh FameAndFortuneUploader.exe
 
-`build.sh` uses Go 1.24.7 and fixed flags, so the same source always gives the same file, and checks it against
+`build.sh` stamps the file's Windows details (name, version, icon, from `winres/`) with the pinned
+[go-winres](https://github.com/tc-hib/go-winres) tool, then builds with Go 1.24.7 and fixed flags, so the same
+source always gives the same file. It checks the result against
 `RELEASE` (the version and its SHA-256). A new version is recorded with `UPDATE=1 sh build.sh /tmp/u.exe` after
 bumping `version` in `main.go`. Each release lists the SHA-256 of the .exe and carries a GitHub build attestation
 (`gh attestation verify FameAndFortuneUploader.exe -R Melktruck/fame-and-fortune-uploader`).
@@ -57,4 +59,5 @@ bumping `version` in `main.go`. Each release lists the SHA-256 of the .exe and c
 ## License
 
 MIT. See [LICENSE](LICENSE). Uses [fyne.io/systray](https://github.com/fyne-io/systray) (BSD-3-Clause) and
-[golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys) (BSD-3-Clause).
+[golang.org/x/sys](https://pkg.go.dev/golang.org/x/sys) (BSD-3-Clause); built with
+[go-winres](https://github.com/tc-hib/go-winres) (MIT), which isn't part of the program.
