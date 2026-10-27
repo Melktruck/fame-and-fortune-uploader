@@ -14,10 +14,13 @@ if [ "$have_go" != "$want_go" ]; then
   echo "The uploader is built with $want_go so the file never changes; this is $have_go." >&2
   exit 1
 fi
+version="$(sed -n 's/^[[:space:]]*version[[:space:]]*= "\(.*\)"$/\1/p' main.go)"
+# The file's Windows details (name, version, icon) come from winres/, stamped with the version in main.go.
+GOTOOLCHAIN=local GOFLAGS=-mod=readonly go tool go-winres make --arch amd64 \
+  --product-version "$version" --file-version "$version"
 GOTOOLCHAIN=local GOFLAGS=-mod=readonly GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
   go build -trimpath -buildvcs=false -ldflags "-H=windowsgui -buildid=" -o "$out" .
 sum="$(sha256sum "$out" | cut -d' ' -f1)"
-version="$(sed -n 's/^[[:space:]]*version[[:space:]]*= "\(.*\)"$/\1/p' main.go)"
 if [ "${UPDATE:-}" = 1 ]; then
   printf '%s %s\n' "$version" "$sum" > RELEASE
   echo "Recorded uploader $version: $sum"
