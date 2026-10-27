@@ -1,12 +1,14 @@
 name: Release
 
-# Pushing a tag like v1.1.0 (matching `version` in main.go and RELEASE) builds FameAndFortuneUploader.exe on a
+# Pushing a tag like v1.1.0 (matching `version` in main.go and RELEASE), or running this workflow by hand on main
+# (Actions > Release > Run workflow; it tags main as v<version> itself), builds FameAndFortuneUploader.exe on a
 # GitHub-hosted runner, attests where it was built, and publishes a GitHub release with its SHA-256.
 # See CODE_SIGNING_POLICY.md. Code signing through SignPath is added here once the project is approved.
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write # the release
@@ -31,10 +33,17 @@ jobs:
         run: |
           v="$(sed -n 's/^[[:space:]]*version[[:space:]]*= "\(.*\)"$/\1/p' main.go)"
           r="$(cut -d' ' -f1 RELEASE)"
-          if [ "v$v" != "$GITHUB_REF_NAME" ] || [ "$v" != "$r" ]; then
-            echo "Tag $GITHUB_REF_NAME, main.go $v, RELEASE $r: they must all match." >&2
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            if [ "$GITHUB_REF_NAME" != main ]; then echo "Run it on main." >&2; exit 1; fi
+            tag="v$v"
+          else
+            tag="$GITHUB_REF_NAME"
+          fi
+          if [ "v$v" != "$tag" ] || [ "$v" != "$r" ]; then
+            echo "Tag $tag, main.go $v, RELEASE $r: they must all match." >&2
             exit 1
           fi
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
       - name: Tests
         run: go test ./...
       - name: Build (fails unless it matches RELEASE byte for byte)
@@ -53,13 +62,19 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: dist/FameAndFortuneUploader.exe
+      - name: Tag main (when run by hand)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" \
+            tag -a "$RELEASE_TAG" -m "Fame & Fortune Uploader ${RELEASE_TAG#v}"
+          git push origin "refs/tags/$RELEASE_TAG"
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           sum="$(cut -d' ' -f1 dist/FameAndFortuneUploader.exe.sha256)"
           cat > notes.md <<NOTES
-          Fame & Fortune Uploader ${GITHUB_REF_NAME}, built by GitHub Actions from ${GITHUB_SHA} ([run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})).
+          Fame & Fortune Uploader ${RELEASE_TAG}, built by GitHub Actions from ${GITHUB_SHA} ([run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})).
 
           **SHA-256:** \`${sum}\`
 
@@ -68,5 +83,5 @@ jobs:
           Check it: \`gh attestation verify FameAndFortuneUploader.exe -R ${GITHUB_REPOSITORY}\`
           NOTES
           sed -i 's/^          //' notes.md
-          gh release create "$GITHUB_REF_NAME" dist/FameAndFortuneUploader.exe dist/FameAndFortuneUploader.exe.sha256 \
-            --title "Fame & Fortune Uploader ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
+          gh release create "$RELEASE_TAG" dist/FameAndFortuneUploader.exe dist/FameAndFortuneUploader.exe.sha256 \
+            --title "Fame & Fortune Uploader ${RELEASE_TAG#v}" --notes-file notes.md --verify-tag
