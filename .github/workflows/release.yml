@@ -1,0 +1,72 @@
+name: Release
+
+# Pushing a tag like v1.1.0 (matching `version` in main.go and RELEASE) builds FameAndFortuneUploader.exe on a
+# GitHub-hosted runner, attests where it was built, and publishes a GitHub release with its SHA-256.
+# See CODE_SIGNING_POLICY.md. Code signing through SignPath is added here once the project is approved.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # the release
+  id-token: write # build attestation
+  attestations: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.7"
+          cache: false # nothing from earlier builds goes into a release
+      - name: The tag matches the version in main.go and RELEASE
+        run: |
+          v="$(sed -n 's/^[[:space:]]*version[[:space:]]*= "\(.*\)"$/\1/p' main.go)"
+          r="$(cut -d' ' -f1 RELEASE)"
+          if [ "v$v" != "$GITHUB_REF_NAME" ] || [ "$v" != "$r" ]; then
+            echo "Tag $GITHUB_REF_NAME, main.go $v, RELEASE $r: they must all match." >&2
+            exit 1
+          fi
+      - name: Tests
+        run: go test ./...
+      - name: Build (fails unless it matches RELEASE byte for byte)
+        run: |
+          mkdir -p dist
+          sh build.sh dist/FameAndFortuneUploader.exe
+          (cd dist && sha256sum FameAndFortuneUploader.exe > FameAndFortuneUploader.exe.sha256)
+      - name: Keep the unsigned build
+        id: unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: FameAndFortuneUploader-unsigned
+          path: dist/FameAndFortuneUploader.exe
+          if-no-files-found: error
+      - name: Attest where it was built
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/FameAndFortuneUploader.exe
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sum="$(cut -d' ' -f1 dist/FameAndFortuneUploader.exe.sha256)"
+          cat > notes.md <<NOTES
+          Fame & Fortune Uploader ${GITHUB_REF_NAME}, built by GitHub Actions from ${GITHUB_SHA} ([run](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})).
+
+          **SHA-256:** \`${sum}\`
+
+          Your browser and Windows will warn that this is an uncommon download. In Chrome click *Download suspicious file* (Edge: *Keep*); when Windows warns, click *More info*, then *Run anyway*. Setup and removal: [README](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}#setting-it-up). [Code signing policy](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/CODE_SIGNING_POLICY.md). [Privacy](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/PRIVACY.md).
+
+          Check it: \`gh attestation verify FameAndFortuneUploader.exe -R ${GITHUB_REPOSITORY}\`
+          NOTES
+          sed -i 's/^          //' notes.md
+          gh release create "$GITHUB_REF_NAME" dist/FameAndFortuneUploader.exe dist/FameAndFortuneUploader.exe.sha256 \
+            --title "Fame & Fortune Uploader ${GITHUB_REF_NAME#v}" --notes-file notes.md --verify-tag
