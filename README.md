@@ -9,6 +9,9 @@ It's optional. You can always paste your code on the guild website or in Discord
 guild website's *Send your code* page. **Code signing policy:** [CODE_SIGNING_POLICY.md](CODE_SIGNING_POLICY.md).
 **Privacy:** [PRIVACY.md](PRIVACY.md).
 
+**Code signing:** this project uses [SignPath Foundation](https://signpath.org/) for free code signing of open-source
+software (application pending; until then releases are unsigned). See the [code signing policy](CODE_SIGNING_POLICY.md).
+
 ## What it does
 
 1. The guild's add-on, [Fame & Fortune on CurseForge](https://www.curseforge.com/wow/addons/fame-fortune), saves a
