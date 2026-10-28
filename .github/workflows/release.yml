@@ -78,7 +78,7 @@ jobs:
 
           **SHA-256:** \`${sum}\`
 
-          Your browser and Windows will warn that this is an uncommon download. In Chrome click *Download suspicious file* (Edge: *Keep*); when Windows warns, click *More info*, then *Run anyway*. Setup and removal: [README](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}#setting-it-up). [Code signing policy](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/CODE_SIGNING_POLICY.md). [Privacy](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/PRIVACY.md).
+          Your browser and Windows will warn that this is an uncommon download. In Chrome click *Download suspicious file* (Edge: *Keep*); when Windows warns, click *More info*, then *Run anyway*. Setup and removal: [README](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}#setting-it-up). [Code signing policy](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/CODE_SIGNING_POLICY.md): this project uses SignPath Foundation for free code signing (application pending; this release is unsigned). [Privacy](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/blob/main/PRIVACY.md).
 
           Check it: \`gh attestation verify FameAndFortuneUploader.exe -R ${GITHUB_REPOSITORY}\`
           NOTES
