@@ -1,5 +1,8 @@
 # Fame & Fortune Uploader
 
+> **Retired, November 2026.** The guild's site now gets character data from Blizzard after you log out, so this app
+> isn't needed. Quit it from the tray and delete it, using [Removing it](#removing-it) below.
+
 A small Windows tray app for players in the **Fame & Fortune** guild in *World of Warcraft: Forever*. It sends
 your character info to the guild website after you log out, so you don't have to copy and paste a code.
 
